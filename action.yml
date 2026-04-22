@@ -1,0 +1,29 @@
+name: "Configure SSH Commit Signing"
+description: "Sets up Git to sign commits with an SSH key"
+branding:
+  icon: "lock"
+  color: "blue"
+
+inputs:
+  ssh-signing-key:
+    description: "Private SSH key content used for signing commits"
+    required: true
+  ssh-key-path:
+    description: "Path to write the SSH signing key"
+    required: false
+    default: "~/.ssh/signing_key"
+  gpgsign:
+    description: "Enable commit.gpgsign"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure SSH commit signing
+      shell: bash
+      run: ${{ github.action_path }}/entrypoint.sh
+      env:
+        SSH_SIGNING_KEY: ${{ inputs.ssh-signing-key }}
+        SSH_KEY_PATH: ${{ inputs.ssh-key-path }}
+        GPGSIGN: ${{ inputs.gpgsign }}

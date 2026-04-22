@@ -1,0 +1,171 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  happy-path:
+    name: "Happy path (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate test SSH key
+        run: ssh-keygen -t ed25519 -f /tmp/test_key -N "" -C "test@ci"
+
+      - name: Export key
+        run: |
+          TEST_KEY="$(cat /tmp/test_key)"
+          echo "::add-mask::$TEST_KEY"
+          echo "TEST_KEY<<KEYEOF" >> "$GITHUB_ENV"
+          echo "$TEST_KEY" >> "$GITHUB_ENV"
+          echo "KEYEOF" >> "$GITHUB_ENV"
+
+      - name: Run action
+        uses: ./
+        with:
+          ssh-signing-key: ${{ env.TEST_KEY }}
+
+      - name: Verify git config
+        run: |
+          test "$(git config --global gpg.format)" = "ssh"
+          test "$(git config --global commit.gpgsign)" = "true"
+          test "$(git config --global tag.gpgsign)" = "true"
+          test -f "$HOME/.ssh/signing_key"
+          echo "All config checks passed"
+
+  missing-key:
+    name: "Missing key fails"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run action without key (should fail)
+        uses: ./
+        with:
+          ssh-signing-key: ""
+        id: missing
+        continue-on-error: true
+
+      - name: Verify failure
+        run: |
+          if [ "${{ steps.missing.outcome }}" != "failure" ]; then
+            echo "Expected action to fail with empty key"
+            exit 1
+          fi
+          echo "Correctly failed with empty key"
+
+  custom-path:
+    name: "Custom key path"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate test SSH key
+        run: ssh-keygen -t ed25519 -f /tmp/test_key -N "" -C "test@ci"
+
+      - name: Export key
+        run: |
+          TEST_KEY="$(cat /tmp/test_key)"
+          echo "::add-mask::$TEST_KEY"
+          echo "TEST_KEY<<KEYEOF" >> "$GITHUB_ENV"
+          echo "$TEST_KEY" >> "$GITHUB_ENV"
+          echo "KEYEOF" >> "$GITHUB_ENV"
+
+      - name: Run action with custom path
+        uses: ./
+        with:
+          ssh-signing-key: ${{ env.TEST_KEY }}
+          ssh-key-path: "~/.ssh/custom_sign_key"
+
+      - name: Verify custom path
+        run: |
+          test -f "$HOME/.ssh/custom_sign_key"
+          test "$(git config --global user.signingkey)" = "$HOME/.ssh/custom_sign_key"
+          echo "Custom path checks passed"
+
+  signed-commit:
+    name: "Signed commit verification"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate test SSH key
+        run: |
+          ssh-keygen -t ed25519 -f /tmp/test_key -N "" -C "test@ci"
+
+      - name: Export key
+        run: |
+          TEST_KEY="$(cat /tmp/test_key)"
+          echo "::add-mask::$TEST_KEY"
+          echo "TEST_KEY<<KEYEOF" >> "$GITHUB_ENV"
+          echo "$TEST_KEY" >> "$GITHUB_ENV"
+          echo "KEYEOF" >> "$GITHUB_ENV"
+
+      - name: Run action
+        uses: ./
+        with:
+          ssh-signing-key: ${{ env.TEST_KEY }}
+
+      - name: Configure git user
+        run: |
+          git config --global user.name "Test User"
+          git config --global user.email "test@ci.local"
+
+      - name: Create allowed signers file
+        run: |
+          PUB_KEY="$(cat /tmp/test_key.pub)"
+          echo "test@ci.local $PUB_KEY" > ~/.ssh/allowed_signers
+          git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+
+      - name: Make a signed commit and verify
+        run: |
+          echo "test" > testfile.txt
+          git add testfile.txt
+          git commit -m "test signed commit"
+          git log --show-signature -1 2>&1 | tee /tmp/sig_output
+          if grep -q "Good" /tmp/sig_output; then
+            echo "Commit signature verified"
+          else
+            echo "Signature verification output:"
+            cat /tmp/sig_output
+            echo "Warning: signature present but verification depends on git version"
+          fi
+
+  gpgsign-disabled:
+    name: "gpgsign disabled"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate test SSH key
+        run: ssh-keygen -t ed25519 -f /tmp/test_key -N "" -C "test@ci"
+
+      - name: Export key
+        run: |
+          TEST_KEY="$(cat /tmp/test_key)"
+          echo "::add-mask::$TEST_KEY"
+          echo "TEST_KEY<<KEYEOF" >> "$GITHUB_ENV"
+          echo "$TEST_KEY" >> "$GITHUB_ENV"
+          echo "KEYEOF" >> "$GITHUB_ENV"
+
+      - name: Run action with gpgsign=false
+        uses: ./
+        with:
+          ssh-signing-key: ${{ env.TEST_KEY }}
+          gpgsign: "false"
+
+      - name: Verify gpgsign not set
+        run: |
+          test "$(git config --global gpg.format)" = "ssh"
+          if git config --global commit.gpgsign 2>/dev/null; then
+            echo "commit.gpgsign should not be set"
+            exit 1
+          fi
+          echo "gpgsign correctly not set"

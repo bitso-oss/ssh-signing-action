@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.0]
 
 ### Added
 
@@ -11,3 +11,4 @@
 - Configures `gpg.format`, `user.signingkey`, `commit.gpgsign`, and `tag.gpgsign`
 - CI test workflow covering happy path, missing key, custom path, signed commit, and gpgsign-disabled scenarios
 - OS matrix testing on Ubuntu and macOS
+- Release workflow with auto-generated notes and floating major tag

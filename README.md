@@ -1,6 +1,6 @@
 # Configure SSH Commit Signing Action
 
-[![Test Action](https://github.com/bitso-oss/configure-ssh-signing-action/actions/workflows/test.yml/badge.svg)](https://github.com/bitso-oss/configure-ssh-signing-action/actions/workflows/test.yml)
+[![Tests](https://github.com/bitso-oss/ssh-signing-action/actions/workflows/test.yml/badge.svg)](https://github.com/bitso-oss/ssh-signing-action/actions/workflows/test.yml)
 
 A GitHub Action that configures Git to sign commits and tags using an SSH key. Simple composite action — no Docker, no Node.js.
 
